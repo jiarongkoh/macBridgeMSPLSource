@@ -84,18 +84,28 @@ class HockeyManager: NSObject {
     
     ///Store crash report and user's metadata
     func approveCrashReport(with filename: String) {
-        approvedCrashReports[filename] = true
+        approvedCrashReports[filename] = false
         storeMetaDataForCrashReport(with: filename)
         saveSettings()
     }
     
     ///Main function to manage the crash reports
     func handleCrashReports() {
-        crashFiles = approvedCrashReports.map({ (filename, _) -> String in
+        //Map crashReports from plist that have not been uploaded successfully, ie bool = false
+        crashFiles = approvedCrashReports.filter{($0.value == false)}.map({ (filename, _) -> String in
             return filename
         })
             
         sendNextCrashReport()
+        
+        //CrashFiles that were successfully uploaded to HockeyApp, but deletion failed
+        let undeletedCrashFiles = approvedCrashReports.filter{($0.value == true)}.map({ (filename, _) -> String in
+            return filename
+        })
+
+        undeletedCrashFiles.forEach { (filename) in
+            cleanCrashReport(with: filename)
+        }
     }
     
     ///Remove crash log file and metadata from Documents directory and keychain
@@ -188,6 +198,10 @@ class HockeyManager: NSObject {
                 
             } else if (statusCode >= 200 && statusCode < 400) {
                 NSLog("Upload \(filename) successful")
+                
+                //Update plist
+                approvedCrashReports[filename] = true
+                saveSettings()
                 
                 cleanCrashReport(with: filename)
                 
